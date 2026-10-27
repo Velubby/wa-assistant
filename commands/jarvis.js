@@ -4,9 +4,11 @@ const fs = require('fs');
 
 // Muat API key dari config.json
 let GEMINI_API_KEY = '';
+let NVIDIA_API_KEY = '';
 try {
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config.json'), 'utf8'));
   GEMINI_API_KEY = config.geminiApiKey || '';
+  NVIDIA_API_KEY = config.nvidiaApiKey || '';
 } catch (e) {
   console.error('⚠️ config.json tidak ditemukan! Fitur Jarvis tidak akan berfungsi.');
 }
@@ -19,7 +21,7 @@ module.exports = {
   name: 'jarvis',
   description: 'Asisten AI cerdas. Ketik "jarvis [perintah]" tanpa tanda seru.',
   async execute(sock, msg, from, args, allCommands) {
-    if (!GEMINI_API_KEY) {
+    if (!GEMINI_API_KEY && !NVIDIA_API_KEY) {
       return await sock.sendMessage(from, { text: '❌ API key belum dikonfigurasi. Hubungi admin bot.' }, { quoted: msg });
     }
 
@@ -513,6 +515,7 @@ Format JSON jika ingin menghapus pesan untuk semua orang (DELETE_FOR_ALL, harus 
 
       // Coba setiap model secara berurutan, dengan retry untuk rate limit
       async function callGemini() {
+        if (!GEMINI_API_KEY) throw new Error('Gemini API key tidak tersedia');
         let lastError;
         for (const model of MODELS) {
           for (let attempt = 1; attempt <= 2; attempt++) {
@@ -536,8 +539,93 @@ Format JSON jika ingin menghapus pesan untuk semua orang (DELETE_FOR_ALL, harus 
         throw lastError;
       }
 
-      // Kirim ke Gemini API (dengan fallback multi-model)
-      const response = await callGemini();
+      // NVIDIA NIM API fallback (OpenAI-compatible format)
+      const NVIDIA_MODELS = [
+        'meta/llama-3.3-70b-instruct',
+        'meta/llama-3.1-8b-instruct',
+      ];
+
+      async function callNvidia() {
+        if (!NVIDIA_API_KEY) throw new Error('NVIDIA API key tidak tersedia');
+
+        // Konversi format Gemini (contents[]) → format OpenAI (messages[])
+        const messages = [{ role: 'system', content: systemPrompt }];
+        for (const turn of history) {
+          messages.push({
+            role: turn.role === 'model' ? 'assistant' : 'user',
+            content: turn.text
+          });
+        }
+
+        // Pesan user saat ini (NVIDIA NIM text-only, gambar tidak didukung di LLM standar)
+        let userContent = userRequest;
+        if (imageBuffer) {
+          userContent += '\n[User mengirim gambar, tapi model ini tidak mendukung analisis gambar. Jawab berdasarkan teks saja.]';
+        }
+        messages.push({ role: 'user', content: userContent });
+
+        const nvidiaBody = {
+          messages: messages,
+          temperature: 0.5,
+          max_tokens: 1024,
+          stream: false
+        };
+
+        let lastError;
+        for (const model of NVIDIA_MODELS) {
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+              const res = await axios.post(
+                'https://integrate.api.nvidia.com/v1/chat/completions',
+                { ...nvidiaBody, model },
+                {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${NVIDIA_API_KEY}`
+                  },
+                  timeout: 30000
+                }
+              );
+              // Konversi response NVIDIA ke format yang kompatibel dengan parser Gemini kita
+              return {
+                data: {
+                  candidates: [{
+                    content: {
+                      parts: [{ text: res.data?.choices?.[0]?.message?.content || '' }]
+                    }
+                  }]
+                },
+                _source: 'nvidia',
+                _model: model
+              };
+            } catch (err) {
+              lastError = err;
+              if (err.response?.status === 429 && attempt < 2) {
+                await new Promise(r => setTimeout(r, 3000));
+                continue;
+              }
+              break;
+            }
+          }
+        }
+        throw lastError;
+      }
+
+      // Kirim ke Gemini API, fallback ke NVIDIA jika semua Gemini gagal
+      let response;
+      let usedProvider = 'gemini';
+      try {
+        response = await callGemini();
+      } catch (geminiErr) {
+        console.log('⚠️ Semua model Gemini gagal, fallback ke NVIDIA NIM API...');
+        try {
+          response = await callNvidia();
+          usedProvider = 'nvidia';
+        } catch (nvidiaErr) {
+          // Kedua provider gagal, lempar error terakhir yang paling informatif
+          throw geminiErr;
+        }
+      }
 
       const aiText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
@@ -555,8 +643,9 @@ Format JSON jika ingin menghapus pesan untuk semua orang (DELETE_FOR_ALL, harus 
       const jsonMatch = aiText.match(/\{[\s\S]*?\}/);
       if (!jsonMatch) {
         // Jika Gemini tidak mengembalikan JSON, tampilkan jawaban mentahnya
+        const providerTag = usedProvider === 'nvidia' ? ' `[NVIDIA]`' : '';
         await sock.sendMessage(from, { react: { text: '🤖', key: msg.key } });
-        return await sock.sendMessage(from, { text: `🤖 ${aiText}` }, { quoted: msg });
+        return await sock.sendMessage(from, { text: `🤖${providerTag} ${aiText}` }, { quoted: msg });
       }
 
       let result;
