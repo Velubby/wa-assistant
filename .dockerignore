@@ -41,3 +41,7 @@ logs/
 .env
 .env.*
 config.json
+
+# 7. Artefak build Rust (target bisa >6 GB; hanya src/, Cargo.toml, Cargo.lock yang dipakai)
+rust/*/target/
+**/*.rs.bk

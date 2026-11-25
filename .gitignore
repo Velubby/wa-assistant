@@ -1,7 +1,12 @@
 node_modules/
+auth_info/
 auth_info_baileys/
 session/
 baileys_store.json
+whatsapp.db
 *.log
 .env
 config.json
+
+# Rust build output
+rust/*/target/
