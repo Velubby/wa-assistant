@@ -1,17 +1,24 @@
-version: '3.8'
-
 services:
   wa-bot:
-    build: .
-    container_name: wa-jarvis-bot
-    # Restart bot secara otomatis jika crash atau jika server Docker restart/boot up
+    build:
+      context: .
+      dockerfile: Dockerfile.rust
+    container_name: wa-bot
     restart: always
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - PORT=8080
+      - DB_PATH=/data/whatsapp.db
+      - RUST_LOG=info
+      - CACHE_MAX=500
+      - CACHE_TTL_DAYS=7
+      # Tanpa nilai di host = tidak dikirim (QR code). Isi untuk pairing code.
+      - PAIR_PHONE
+      # Kosong/tidak diset = notifikasi ke akun bot sendiri.
+      - TARGET_JID
     volumes:
-      # Sangat penting: Simpan kredensial login WhatsApp di mesin host agar tidak perlu scan ulang QR saat container diupdate/di-restart
-      - ./auth_info:/app/auth_info
-    # Konfigurasi pembatasan ukuran log agar tidak memakan memori disk server
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - wa-data:/data
+
+volumes:
+  wa-data:

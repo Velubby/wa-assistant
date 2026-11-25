@@ -1,4 +1,4 @@
-# Pure-Rust WhatsApp anti-delete bot — no Node.js anywhere.
+# WhatsApp anti-delete bot.
 # Build:  docker build -f Dockerfile.rust -t wa-bot .
 # Run:    docker run -e PORT=8080 -e PAIR_PHONE=628... -v wa-data:/data wa-bot
 

@@ -1,12 +1,16 @@
-node_modules/
+# Sesi & kredensial WhatsApp — jangan pernah di-commit
+whatsapp.db
+whatsapp.db-shm
+whatsapp.db-wal
 auth_info/
 auth_info_baileys/
 session/
 baileys_store.json
-whatsapp.db
+config.json
+
+# File lokal
 *.log
 .env
-config.json
 
 # Rust build output
 rust/*/target/

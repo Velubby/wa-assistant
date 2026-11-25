@@ -4,7 +4,7 @@
 set -e
 
 echo "=============================================="
-echo "      🔄 JARVIS BOT - AUTO UPDATE SCRIPT      "
+echo "         WA BOT - AUTO UPDATE SCRIPT         "
 echo "=============================================="
 echo ""
 

@@ -1,4 +1,4 @@
-# Cara pakai `wa-bot` (pure Rust)
+# Cara pakai `wa-bot`
 
 Bot ini **hanya** berisi fitur anti-delete. Semua command lama dari bot Node
 (`!yt`, `!ig`, `!sticker`, `!ocr`, `!jarvis`, dst.) belum diport.
@@ -14,8 +14,9 @@ Bot ini **hanya** berisi fitur anti-delete. Semua command lama dari bot Node
 | Anti-delete **status WhatsApp** (`status@broadcast`) | ✅ |
 | Nama grup asli di notifikasi | ✅ |
 | `!antidelete on` / `off` | ✅ |
-| `!stats` — uptime, RAM, dan counter langsung di WhatsApp | ✅ |
-| `!rvo` — buka media view once (download + re-upload) | ✅ image, video, audio |
+| `!stats` — uptime, RAM, dan ping | ✅ |
+| `!ping` — balas Pong + latency | ✅ |
+| `!rvo` — buka media view once (download + re-upload), hasil ke chat pribadi | ✅ image, video, audio |
 | Endpoint `GET /health`: uptime, RAM (RSS), dan counter | ✅ |
 | Login pairing code / QR, sesi tersimpan di SQLite | ✅ |
 | Cache tanpa batas (`CACHE_MAX=0`, `CACHE_TTL_DAYS=0`) | ✅ opsional |
@@ -74,20 +75,24 @@ Bot memproses **dua** command:
 
 | Perintah | Efek |
 |---|---|
-| `!stats` | Balas uptime, RAM, jumlah cache, dan seluruh counter |
+| `!stats` | Balas uptime, RAM, dan ping |
+| `!ping` | Balas `Pong! <ms>` |
 | `!antidelete` | Balas status sekarang: `Anti-delete is currently enabled.` |
 | `!antidelete on` | Nyalakan anti-delete |
 | `!antidelete off` | Matikan anti-delete |
 | `!antidelete 1` / `true` / `enable` | Sama dengan `on` |
 | `!antidelete 0` / `false` / `disable` | Sama dengan `off` |
-| `!rvo` (reply pesan view once) | Download media view once, upload ulang dengan kunci bot, kirim ke chat |
+| `!rvo` (reply pesan view once) | Download media view once, upload ulang dengan kunci bot, kirim ke chat pribadi |
 
 Contoh:
 
 ```
 !antidelete        → Anti-delete is currently enabled. Use !antidelete on|off
 !antidelete off    → Anti-delete disabled
-!stats             → 📊 *Bot Stats* ⏱️ Uptime: 38s 💾 RAM: 32.3 MB ...
+!stats             → Uptime: 38s
+                   RAM: 32.3 MB
+                   Ping: 1ms
+!ping              → Pong! 1ms
 ```
 
 ### Catatan `!rvo`
@@ -97,6 +102,8 @@ Contoh:
   `viewOnceMessage`, dan `ephemeralMessage`, untuk image/video/audio.
 - Media diundang pakai kunci asli lalu di-upload ulang dengan kunci bot —
   jadi butuh bandwidth dan sedikit RAM (proses, bukan disimpan).
+- Hasil media dikirim ke `TARGET_JID` (atau chat sendiri kalau belum diset),
+  bukan ke grup tempat command diketik.
 - Kalau metadata tidak lengkap, bot membalas pesan error.
 
 ---
@@ -120,7 +127,7 @@ Format notifikasi yang dikirim:
 📤 Dikirim: 25/11/2026 18:30:00
 🗑️ Dihapus: 25/11/2026 18:31:12
 
-<isi pesan>
+💬 <isi pesan>
 ```
 
 Semua waktu memakai zona **Asia/Jakarta (WIB)**.

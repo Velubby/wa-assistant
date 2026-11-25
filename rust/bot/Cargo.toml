@@ -3,7 +3,7 @@ name = "wa-bot"
 version = "1.0.0"
 edition = "2021"
 publish = false
-description = "Standalone pure-Rust WhatsApp anti-delete bot (migrated from Node.js)"
+description = "WhatsApp anti-delete bot"
 
 [[bin]]
 name = "wa-bot"

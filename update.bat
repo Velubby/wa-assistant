@@ -1,9 +1,9 @@
 @echo off
-title Jarvis Bot - Auto Update Script
+title WA Bot - Auto Update Script
 color 0B
 
 echo ==============================================
-echo    ^Length: 44 ^- JARVIS BOT - AUTO UPDATE SCRIPT
+echo             WA BOT - AUTO UPDATE SCRIPT
 echo ==============================================
 echo.
 

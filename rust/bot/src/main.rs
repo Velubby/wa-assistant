@@ -467,7 +467,7 @@ async fn main() -> Result<()> {
                         "Pesan Dihapus!"
                     };
                     let header = format!(
-                        "ðŸ—‘ï¸ *{}*\nâ”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\nðŸ‘¤ Dari: {}\nðŸ“ Di: {}\nðŸ“¤ Dikirim: {}\nðŸ—‘ï¸ Dihapus: {}\n",
+                        "🗑️ *{}*\n━━━━━━━━━━━━━━━\n👤 Dari: {}\n📍 Di: {}\n📤 Dikirim: {}\n🗑️ Dihapus: {}\n",
                         title, cached.sender_name, location, sent_at, deleted_at
                     );
 
@@ -487,40 +487,42 @@ async fn main() -> Result<()> {
         },
     );
 
-    // ---- handler 3: !stats and !antidelete ----
+    // ---- handler 3: !rvo, !ping, !stats and !antidelete ----
     let anti_delete_c = state.anti_delete_enabled.clone();
-    let stats_c = state.stats.clone();
-    let cache_c = state.message_cache.clone();
-    let status_c = state.status_cache.clone();
     let started_c = state.started_at.clone();
+    let target_c = state.target_jid.clone();
     builder = builder.on_message(move |ctx: MessageContext| {
         let anti_delete = anti_delete_c.clone();
-        let stats = stats_c.clone();
-        let cache = cache_c.clone();
-        let status = status_c.clone();
         let started = started_c.clone();
+        let target = target_c.clone();
 
         async move {
+            let request_at = Instant::now();
             let body = extract_message_text(ctx.message.as_ref());
             let trimmed = body.trim();
 
             if trimmed.starts_with("!rvo") {
-                let _ = handle_rvo(&ctx).await;
+                let _ = handle_rvo(&ctx, target.clone()).await;
+                return;
+            }
+
+            if trimmed.starts_with("!ping") {
+                let ms = request_at.elapsed().as_millis();
+                let _ = ctx.reply(format!("Pong! {}ms", ms)).await;
                 return;
             }
 
             if trimmed.starts_with("!stats") {
-                let s = stats.lock().await;
                 let up = started.elapsed().as_secs();
-                let cached = cache.lock().await.len();
-                let statuses = status.lock().await.len();
-                let text = format!(
-                    "ðŸ“Š *Bot Stats*\nâ”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\nâ±ï¸ Uptime: {}s\nðŸ’¾ RAM: {:.1} MB\nðŸ§  Cache: {} pesan ({} status)\nðŸ“¥ Captured: {}\nâœ… Recovered: {} ({} media)\nðŸ—‘ï¸ Ignore self: {}\nâŒ Misses: {}\nðŸ“¸ Status: {} captured, {} recovered",
-                    up, rss_mb(), cached, statuses, s.captured,
-                    s.recovered, s.media_recovered, s.revoked_ignored_self,
-                    s.revoke_misses, s.statuses_captured, s.statuses_recovered,
-                );
-                let _ = ctx.reply(text).await;
+                let ms = request_at.elapsed().as_millis();
+                let _ = ctx
+                    .reply(format!(
+                        "Uptime: {}s\nRAM: {:.1} MB\nPing: {}ms",
+                        up,
+                        rss_mb(),
+                        ms
+                    ))
+                    .await;
                 return;
             }
 
@@ -628,9 +630,9 @@ fn classify_message_type(msg: &wa::Message) -> String {
     "unknown".to_string()
 }
 
-/// !rvo â€” reveal a quoted view-once media by downloading it with its original
+/// !rvo — reveal a quoted view-once media by downloading it with its original
 /// CDN metadata and re-uploading it under a fresh key we own.
-async fn handle_rvo(ctx: &MessageContext) -> Result<()> {
+async fn handle_rvo(ctx: &MessageContext, target: Option<Jid>) -> Result<()> {
     let quoted = ctx
         .message
         .extended_text_message
@@ -640,7 +642,7 @@ async fn handle_rvo(ctx: &MessageContext) -> Result<()> {
 
     let Some(q) = quoted else {
         let _ = ctx
-            .reply("âŒ Reply pesan view once dulu, lalu ketik *!rvo*")
+            .reply("❌ Reply pesan view once dulu, lalu ketik *!rvo*")
             .await;
         return Ok(());
     };
@@ -731,18 +733,18 @@ async fn handle_rvo(ctx: &MessageContext) -> Result<()> {
 
     let Some((kind, mime, sha, enc_sha, len, key, direct, url)) = view_once else {
         let _ = ctx
-            .reply("âŒ Pesan yang direply bukan view once atau tipe tidak didukung.")
+            .reply("❌ Pesan yang direply bukan view once atau tipe tidak didukung.")
             .await;
         return Ok(());
     };
     let (Some(sha), Some(enc_sha), Some(len), Some(key)) = (sha, enc_sha, len, key) else {
         let _ = ctx
-            .reply("âŒ Metadata media view once tidak lengkap.")
+            .reply("❌ Metadata media view once tidak lengkap.")
             .await;
         return Ok(());
     };
     if key.len() != 32 || sha.len() != 32 || enc_sha.len() != 32 {
-        let _ = ctx.reply("âŒ Kunci media tidak valid.").await;
+        let _ = ctx.reply("❌ Kunci media tidak valid.").await;
         return Ok(());
     }
 
@@ -758,7 +760,9 @@ async fn handle_rvo(ctx: &MessageContext) -> Result<()> {
     };
     let params = DownloadParams::encrypted(path, key, sha, enc_sha, len, media_type)?;
 
-    let _ = ctx.reply("â³ Mengambil media view once...").await;
+    let _ = ctx
+        .reply("⏳ Mengambil media view once... hasil dikirim ke chat pribadi.")
+        .await;
     let bytes = ctx
         .client
         .download(&params, DownloadLimits::default())
@@ -815,9 +819,18 @@ async fn handle_rvo(ctx: &MessageContext) -> Result<()> {
         }
     }
     let _array = array;
-    ctx.client
-        .send_message(ctx.info.source.chat.clone(), out)
-        .await?;
+    // Hasil !rvo selalu ke chat pribadi (TARGET_JID / chat sendiri), bukan ke grup.
+    let destination = match target {
+        Some(jid) => jid,
+        None => match ctx.client.pn() {
+            Some(jid) => jid,
+            None => {
+                warn!("RVO: nomor bot tidak diketahui, media tidak dikirim");
+                return Ok(());
+            }
+        },
+    };
+    ctx.client.send_message(destination, out).await?;
     Ok(())
 }
 
@@ -833,29 +846,28 @@ async fn send_cached_message(
         "image" | "video" | "audio" | "sticker" | "document"
     );
 
-    // Header first, always, so the owner knows what happened.
-    let mut notice = wa::Message::default();
-    notice.conversation = Some(header.to_string());
-    let _ = client.send_message(target, notice).await?;
-
     if is_media {
-        // `forward_message` relays the original CDN blob â€” no download, no
-        // re-upload, and it strips the source quote/secret for us.
+        // Header bubble, then the relayed media (forward keeps the CDN blob).
+        let mut notice = wa::Message::default();
+        notice.conversation = Some(header.to_string());
+        let _ = client.send_message(target, notice).await?;
+
         if let Err(e) = client.forward_message(target, proto).await {
             warn!("Gagal forward media {}: {e}", cached.msg_type);
             let mut fallback = wa::Message::default();
             fallback.conversation = Some(format!(
-                "{header}âš ï¸ Media {} gagal diteruskan.",
+                "⚠️ Media {} gagal diteruskan.",
                 cached.msg_type
             ));
             let _ = client.send_message(target, fallback).await?;
         }
     } else {
+        // Single bubble: header + original text. No separate header bubble.
         let mut out = wa::Message::default();
         out.conversation = Some(if cached.msg_type == "text" {
-            format!("{}{}", header, cached.body)
+            format!("{}💬 {}", header, cached.body)
         } else {
-            format!("{}ðŸ“Ž {}", header, cached.msg_type)
+            format!("{}💬 {}", header, cached.msg_type)
         });
         let _ = client.send_message(target, out).await?;
     }

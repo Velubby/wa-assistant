@@ -20,7 +20,7 @@ set CACHE_MAX=0
 set CACHE_TTL_DAYS=0
 
 echo ==================================================
-echo   WA Bot - pure Rust (anti-delete)
+echo   WA Bot - anti-delete
 echo --------------------------------------------------
 echo   PORT       : %PORT%
 if defined PAIR_PHONE (

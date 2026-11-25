@@ -1,5 +1,4 @@
-# Render blueprint for the pure-Rust WhatsApp anti-delete bot.
-# The Node.js service is intentionally absent: nothing here runs Node.
+# Render blueprint untuk WhatsApp anti-delete bot.
 services:
   - type: web
     name: wa-bot

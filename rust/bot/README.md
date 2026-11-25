@@ -1,7 +1,6 @@
-# wa-bot — pure-Rust WhatsApp anti-delete bot
+# wa-bot — WhatsApp anti-delete bot
 
-Standalone Rust binary. No Node.js runtime, no napi-rs bridge, no fallback to the
-JavaScript implementation.
+Bot anti-delete WhatsApp yang berjalan sebagai binary mandiri.
 
 ## What it does
 
@@ -15,6 +14,8 @@ JavaScript implementation.
   "message deleted" header to `TARGET_JID`.
 - Serves `GET /health` on `0.0.0.0:$PORT` for Render Web Services.
 - `!antidelete on|off` toggles the feature at runtime (default: on).
+- `!ping` replies with latency; `!stats` shows uptime, RAM, and ping.
+- `!rvo` sends revealed view-once media to the private chat, not the group.
 
 ## Build
 
@@ -53,7 +54,8 @@ persists. Set `PAIR_PHONE` and `TARGET_JID` as secret/synced env vars.
 
 ## Scope
 
-This binary currently implements the anti-delete core and the `!antidelete`
-command. The other JavaScript commands (downloaders, stickers, OCR, Jarvis AI)
-are **not** ported yet; the Node.js bot in the repository root is unchanged
-apart from the static command registry needed to unblock the migration.
+This binary implements the anti-delete core plus `!antidelete`, `!ping`,
+`!stats`, and `!rvo`. The old Node.js bot has been removed from this repository — the former
+JavaScript commands (downloaders, stickers, OCR, Jarvis AI) are **not** ported
+yet. See [USAGE.md](USAGE.md) for the full feature list, configuration, and
+known limitations.
