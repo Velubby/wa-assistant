@@ -1,16 +1,11 @@
-const fs = require('fs')
-const path = require('path')
-
 module.exports = {
   name: 'help',
   description: 'Tampilkan daftar command',
   async execute(sock, msg, from, args) {
-    const commandsPath = path.join(__dirname);
-    const files = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
-
-    // Muat semua command (kecuali yang di-set hidden)
-    let commands = files.map(file => require(path.join(commandsPath, file)));
-    commands = commands.filter(cmd => !cmd.hide);
+    // Required lazily: commands/index.js loads this module, so a top-level
+    // require here would be circular and capture `undefined`.
+    const { getVisibleCommands } = require('./index.js');
+    const commands = getVisibleCommands();
 
     // Definisikan kategori untuk merapikan tampilan
     const categories = {
@@ -62,4 +57,4 @@ module.exports = {
 
     await sock.sendMessage(from, { text }, { quoted: msg });
   }
-}
+};

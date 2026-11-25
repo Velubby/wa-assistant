@@ -1,0 +1,45 @@
+[package]
+name = "wa-bot"
+version = "1.0.0"
+edition = "2021"
+publish = false
+description = "Standalone pure-Rust WhatsApp anti-delete bot (migrated from Node.js)"
+
+[[bin]]
+name = "wa-bot"
+path = "src/main.rs"
+
+[dependencies]
+# Use git version to ensure we get the latest fixes, disable simd feature
+whatsapp-rust = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "7e5c198e1a25ea405faa7a69a47bc727ea15484c", default-features = false, features = ["tokio-runtime", "tokio-transport", "ureq-client", "sqlite-storage"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "io-util", "time", "sync"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "multipart", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+regex = "1"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+anyhow = "1"
+base64 = "0.22"
+axum = "0.7"
+futures = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.8"
+# Renders the pairing QR into the terminal so it can be scanned
+qrcode = "0.14"
+sysinfo = "0.36"
+# Compile SQLite from source: no system sqlite3.lib required on Windows or Render
+libsqlite3-sys = { version = "0.37", features = ["bundled"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true
+
+# reqwest (rustls), image and regex are locked in for the next porting steps
+# (HTTP OCR instead of tesseract.js, sticker/media handling, Jarvis regex
+# routing) and are intentionally kept even before their first use.
+[lints.cargo]
+unused_dependencies = "allow"

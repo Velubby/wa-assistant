@@ -12,85 +12,9 @@ const pino = require('pino')
 const path = require('path')
 const fs = require('fs')
 const readline = require('readline')
-const chokidar = require('chokidar')
 
-const commands = {}
-const filePathToName = new Map()
-const commandsPath = path.join(__dirname, 'commands')
-
-function loadCommand(filePath) {
-  try {
-    delete require.cache[require.resolve(filePath)]
-    const cmd = require(filePath)
-
-    if (!cmd || !cmd.name || typeof cmd.execute !== 'function') {
-      console.error(`❌ File ${path.basename(filePath)} tidak valid (butuh .name dan .execute)`)
-      return
-    }
-
-    if (filePathToName.has(filePath)) {
-      const oldName = filePathToName.get(filePath)
-      if (oldName !== cmd.name) delete commands[oldName]
-    }
-
-    commands[cmd.name] = cmd
-    filePathToName.set(filePath, cmd.name)
-    console.log(`✅ Command loaded: !${cmd.name}`)
-  } catch (err) {
-    console.error(`❌ Gagal load command ${filePath}:`, err.message)
-  }
-}
-
-function unloadCommand(filePath) {
-  try {
-    const name = filePathToName.get(filePath)
-    if (name) {
-      delete commands[name]
-      filePathToName.delete(filePath)
-      console.log(`🗑️ Command unloaded: !${name}`)
-    }
-    try {
-      delete require.cache[require.resolve(filePath)]
-    } catch { }
-  } catch (err) {
-    console.error('Gagal unload:', err.message)
-  }
-}
-
-if (!fs.existsSync(commandsPath)) {
-  fs.mkdirSync(commandsPath, { recursive: true })
-  console.log(`📁 Folder commands dibuat: ${commandsPath}`)
-}
-
-fs.readdirSync(commandsPath).forEach(file => {
-  if (file.endsWith('.js')) loadCommand(path.join(commandsPath, file))
-})
-
-const watcher = chokidar.watch(commandsPath, {
-  ignored: /(^|[\/\\])\../,
-  persistent: true,
-  ignoreInitial: true,
-})
-
-watcher
-  .on('add', filePath => {
-    if (filePath.endsWith('.js')) {
-      console.log(`📁 File baru: ${path.basename(filePath)}`)
-      loadCommand(filePath)
-    }
-  })
-  .on('change', filePath => {
-    if (filePath.endsWith('.js')) {
-      console.log(`✏️ File diubah: ${path.basename(filePath)}`)
-      loadCommand(filePath)
-    }
-  })
-  .on('unlink', filePath => {
-    if (filePath.endsWith('.js')) {
-      console.log(`🗑️ File dihapus: ${path.basename(filePath)}`)
-      unloadCommand(filePath)
-    }
-  })
+// Static command registry
+const { commandMap } = require('./commands/index.js')
 
 const TARGET_JID = '6283169513207@s.whatsapp.net'
 
@@ -416,9 +340,10 @@ async function handleMessage(sock, msg, isNewMsg = true) {
     }
 
     const jarvisArgs = body.slice(6).trim().split(/\s+/).filter(Boolean)
-    if (commands['jarvis']) {
+    const jarvisCmd = commandMap.get('jarvis')
+    if (jarvisCmd) {
       try {
-        await commands['jarvis'].execute(sock, msg, from, jarvisArgs, commands)
+        await jarvisCmd.execute(sock, msg, from, jarvisArgs, commandMap)
       } catch (err) {
         console.error('Jarvis error:', err)
         try {
@@ -442,9 +367,10 @@ async function handleMessage(sock, msg, isNewMsg = true) {
   const commandName = args.shift()?.toLowerCase()
   if (!commandName) return
 
-  if (commands[commandName]) {
+  const cmd = commandMap.get(commandName)
+  if (cmd) {
     try {
-      await commands[commandName].execute(sock, msg, from, args, commands)
+      await cmd.execute(sock, msg, from, args, commandMap)
     } catch (err) {
       console.error('Error:', err)
       try {

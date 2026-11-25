@@ -1,0 +1,35 @@
+# Pure-Rust WhatsApp anti-delete bot — no Node.js anywhere.
+# Build:  docker build -f Dockerfile.rust -t wa-bot .
+# Run:    docker run -e PORT=8080 -e PAIR_PHONE=628... -v wa-data:/data wa-bot
+
+FROM rust:1-slim-bookworm AS builder
+WORKDIR /build
+
+# Build deps for bundled SQLite + TLS backends
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends pkg-config musl-tools \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY rust/bot/Cargo.toml rust/bot/Cargo.lock ./
+RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf src
+
+COPY rust/bot/src ./src
+RUN touch src/main.rs && cargo build --release
+
+FROM debian:bookworm-slim AS runtime
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Session + SQLite live here; mount a disk on Render for persistence.
+VOLUME ["/data"]
+WORKDIR /data
+
+COPY --from=builder /build/target/release/wa-bot /usr/local/bin/wa-bot
+
+ENV PORT=8080 \
+    DB_PATH=/data/whatsapp.db \
+    RUST_LOG=info
+
+EXPOSE 8080
+CMD ["wa-bot"]

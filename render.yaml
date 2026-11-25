@@ -1,0 +1,27 @@
+# Render blueprint for the pure-Rust WhatsApp anti-delete bot.
+# The Node.js service is intentionally absent: nothing here runs Node.
+services:
+  - type: web
+    name: wa-bot
+    runtime: docker
+    dockerfilePath: ./Dockerfile.rust
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
+      # WhatsApp number that receives the anti-delete notifications.
+      - key: TARGET_JID
+        sync: false
+      # Phone number used for pairing-code login (international format, digits only).
+      - key: PAIR_PHONE
+        sync: false
+      - key: DB_PATH
+        value: /data/whatsapp.db
+      - key: RUST_LOG
+        value: info
+    disk:
+      name: wa-data
+      mountPath: /data
+      sizeGB: 1
